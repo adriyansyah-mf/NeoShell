@@ -18,6 +18,11 @@ let commandSnippets = [
   { name: 'Processes', cmd: 'ps aux' }
 ];
 
+// Multiple tabs management
+let tabs = new Map(); // tabId -> { connection, sessionId, terminal, fitAddon, currentPath, files }
+let activeTabId = null;
+let tabCounter = 0;
+
 // DOM elements
 const connectionsList = document.getElementById('connectionsList');
 const welcomeScreen = document.getElementById('welcomeScreen');
@@ -57,6 +62,11 @@ const customPrimary = document.getElementById('customPrimary');
 const customSecondary = document.getElementById('customSecondary');
 const customBackground = document.getElementById('customBackground');
 const applyCustomTheme = document.getElementById('applyCustomTheme');
+
+// Tabs elements
+const tabsBar = document.getElementById('tabsBar');
+const tabsList = document.getElementById('tabsList');
+const btnNewTab = document.getElementById('btnNewTab');
 
 // File Manager elements
 const btnTabTerminal = document.getElementById('btnTabTerminal');
@@ -261,31 +271,68 @@ function setupEventListeners() {
     }
   });
   
-  // SSH event listeners
+  // SSH event listeners for multiple tabs
   window.electronAPI.onSshData((connectionId, data) => {
-    if (connectionId === activeSessionId && terminal) {
-      terminal.write(data);
+    // Find tab with this sessionId
+    for (const [tabId, tab] of tabs.entries()) {
+      if (tab.sessionId === connectionId) {
+        tab.terminal.write(data);
+        break;
+      }
     }
   });
   
   window.electronAPI.onSshClosed((connectionId) => {
-    if (connectionId === activeSessionId) {
-      showWelcomeScreen();
-      alert('SSH connection closed');
+    // Find and close tab with this sessionId
+    for (const [tabId, tab] of tabs.entries()) {
+      if (tab.sessionId === connectionId) {
+        showNotification('Connection Closed', `${tab.connection.name} connection closed`, 'info');
+        closeTab(tabId);
+        break;
+      }
     }
   });
   
   // SCP progress listener
   window.electronAPI.onScpProgress((connectionId, type, progress) => {
-    if (connectionId === activeSessionId) {
-      showProgress(type, progress);
+    // Find tab with this sessionId
+    for (const [tabId, tab] of tabs.entries()) {
+      if (tab.sessionId === connectionId && tabId === activeTabId) {
+        showProgress(type, progress);
+        break;
+      }
     }
   });
 }
 
 // Initialize terminal
 function initializeTerminal() {
-  terminal = new Terminal({
+  // This creates the first terminal instance
+  // For multiple tabs, we'll create terminals dynamically
+  terminal = createTerminalInstance();
+  fitAddon = new FitAddon();
+  terminal.loadAddon(fitAddon);
+  terminal.loadAddon(new WebLinksAddon());
+  
+  terminal.open(document.getElementById('terminal'));
+  fitAddon.fit();
+  
+  // Handle terminal input
+  terminal.onData((data) => {
+    if (activeSessionId) {
+      window.electronAPI.sshWrite(activeSessionId, data);
+    }
+  });
+  
+  // Handle window resize
+  window.addEventListener('resize', () => {
+    resizeActiveTerminal();
+  });
+}
+
+// Create terminal instance
+function createTerminalInstance() {
+  return new Terminal({
     cursorBlink: true,
     fontSize: 14,
     fontFamily: 'Consolas, "Courier New", monospace',
@@ -312,34 +359,21 @@ function initializeTerminal() {
       brightWhite: '#ffffff'
     }
   });
-  
-  fitAddon = new FitAddon();
-  terminal.loadAddon(fitAddon);
-  terminal.loadAddon(new WebLinksAddon());
-  
-  terminal.open(document.getElementById('terminal'));
-  fitAddon.fit();
-  
-  // Handle terminal input
-  terminal.onData((data) => {
-    if (activeSessionId) {
-      window.electronAPI.sshWrite(activeSessionId, data);
+}
+
+// Resize active terminal
+function resizeActiveTerminal() {
+  const activeTab = tabs.get(activeTabId);
+  if (activeTab && activeTab.fitAddon) {
+    activeTab.fitAddon.fit();
+    if (activeTab.sessionId) {
+      window.electronAPI.sshResize(
+        activeTab.sessionId,
+        activeTab.terminal.rows,
+        activeTab.terminal.cols
+      );
     }
-  });
-  
-  // Handle window resize
-  window.addEventListener('resize', () => {
-    if (fitAddon) {
-      fitAddon.fit();
-      if (activeSessionId) {
-        window.electronAPI.sshResize(
-          activeSessionId,
-          terminal.rows,
-          terminal.cols
-        );
-      }
-    }
-  });
+  }
 }
 
 // Open connection modal
@@ -451,21 +485,56 @@ async function deleteConnection(id) {
   }
 }
 
-// Connect to server
+// Connect to server (with tabs)
 async function connectToServer(id) {
   const connection = connections.find(c => c.id === id);
   if (!connection) return;
   
-  // Show terminal
-  showTerminalScreen(connection);
+  // Create new tab
+  const tabId = 'tab-' + (++tabCounter);
+  
+  // Create terminal for this tab
+  const tabTerminal = createTerminalInstance();
+  const tabFitAddon = new FitAddon();
+  tabTerminal.loadAddon(tabFitAddon);
+  tabTerminal.loadAddon(new WebLinksAddon());
+  
+  const sessionId = Date.now().toString();
+  
+  // Store tab data
+  tabs.set(tabId, {
+    id: tabId,
+    connection: connection,
+    sessionId: sessionId,
+    terminal: tabTerminal,
+    fitAddon: tabFitAddon,
+    currentPath: '/home/' + connection.username,
+    files: [],
+    terminalElement: null
+  });
+  
+  // Show tabs bar
+  tabsBar.classList.remove('hidden');
+  
+  // Render tabs
+  renderTabs();
+  
+  // Switch to new tab
+  switchToTab(tabId);
   
   // Clear terminal
-  terminal.clear();
-  terminal.write('Connecting to ' + connection.host + '...\r\n');
+  tabTerminal.write('Connecting to ' + connection.host + '...\r\n');
+  
+  // Handle terminal input
+  tabTerminal.onData((data) => {
+    const tab = tabs.get(activeTabId);
+    if (tab && tab.sessionId) {
+      window.electronAPI.sshWrite(tab.sessionId, data);
+    }
+  });
   
   try {
-    activeSessionId = Date.now().toString();
-    await window.electronAPI.sshConnect(activeSessionId, connection);
+    await window.electronAPI.sshConnect(sessionId, connection);
     
     connectionStatus.textContent = 'Connected';
     connectionStatus.classList.add('connected');
@@ -474,28 +543,37 @@ async function connectToServer(id) {
     activeConnectionBar.classList.remove('hidden');
     activeConnectionName.textContent = connection.name;
     
-    // Set default path untuk file manager
+    // Set default path
     currentPath.value = '/home/' + connection.username;
     
     // Show notification
     showNotification('Connected', `Connected to ${connection.name}`, 'success');
     
-    // Resize terminal to fit
+    // Resize terminal
     setTimeout(() => {
-      fitAddon.fit();
+      tabFitAddon.fit();
       window.electronAPI.sshResize(
-        activeSessionId,
-        terminal.rows,
-        terminal.cols
+        sessionId,
+        tabTerminal.rows,
+        tabTerminal.cols
       );
     }, 100);
     
-    terminal.focus();
+    tabTerminal.focus();
   } catch (err) {
-    terminal.write('\r\n\x1b[1;31mConnection failed: ' + err.message + '\x1b[0m\r\n');
+    tabTerminal.write('\r\n\x1b[1;31mConnection failed: ' + err.message + '\x1b[0m\r\n');
     connectionStatus.textContent = 'Failed';
     connectionStatus.classList.remove('connected');
-    activeSessionId = null;
+    
+    // Remove failed tab
+    tabs.delete(tabId);
+    renderTabs();
+    
+    // If no tabs, show welcome
+    if (tabs.size === 0) {
+      showWelcomeScreen();
+    }
+    
     showNotification('Connection Failed', err.message, 'error');
   }
 }
@@ -610,15 +688,17 @@ async function handleDrop(e) {
   }
 }
 
-// Refresh file list
+// Refresh file list (with tabs support)
 async function refreshFileList() {
-  if (!activeSessionId) return;
+  const activeTab = tabs.get(activeTabId);
+  if (!activeTab || !activeTab.sessionId) return;
   
   const remotePath = currentPath.value || '/home';
   
   try {
-    const files = await window.electronAPI.scpListDir(activeSessionId, remotePath);
-    allFiles = files; // Store for search
+    const files = await window.electronAPI.scpListDir(activeTab.sessionId, remotePath);
+    activeTab.files = files; // Store in tab
+    activeTab.currentPath = remotePath;
     searchFiles.value = ''; // Clear search
     renderFileList(files, remotePath);
   } catch (err) {
@@ -740,8 +820,11 @@ async function uploadFile() {
   }
 }
 
-// Upload file to server
+// Upload file to server (with tabs)
 async function uploadFileToServer(localPath, fileName) {
+  const activeTab = tabs.get(activeTabId);
+  if (!activeTab || !activeTab.sessionId) return;
+  
   const remotePath = currentPath.value.endsWith('/') 
     ? currentPath.value + fileName 
     : currentPath.value + '/' + fileName;
@@ -750,7 +833,7 @@ async function uploadFileToServer(localPath, fileName) {
     progressText.textContent = `Uploading ${fileName}...`;
     uploadProgress.classList.remove('hidden');
     
-    await window.electronAPI.scpUpload(activeSessionId, localPath, remotePath);
+    await window.electronAPI.scpUpload(activeTab.sessionId, localPath, remotePath);
     
     uploadProgress.classList.add('hidden');
     progressBarFill.style.width = '0%';
@@ -763,8 +846,11 @@ async function uploadFileToServer(localPath, fileName) {
   }
 }
 
-// Download file
+// Download file (with tabs)
 async function downloadFile(fileName) {
+  const activeTab = tabs.get(activeTabId);
+  if (!activeTab || !activeTab.sessionId) return;
+  
   const remotePath = currentPath.value.endsWith('/') 
     ? currentPath.value + fileName 
     : currentPath.value + '/' + fileName;
@@ -776,7 +862,7 @@ async function downloadFile(fileName) {
     progressText.textContent = `Downloading ${fileName}...`;
     uploadProgress.classList.remove('hidden');
     
-    await window.electronAPI.scpDownload(activeSessionId, remotePath, localPath);
+    await window.electronAPI.scpDownload(activeTab.sessionId, remotePath, localPath);
     
     uploadProgress.classList.add('hidden');
     progressBarFill.style.width = '0%';
@@ -942,15 +1028,16 @@ function showNotification(title, message, type = 'info') {
   }, 5000);
 }
 
-// Command Snippets
+// Command Snippets (with tabs)
 function executeSnippet(cmd) {
-  if (!activeSessionId || !terminal) {
+  const activeTab = tabs.get(activeTabId);
+  if (!activeTab || !activeTab.sessionId) {
     showNotification('Error', 'Please connect to a server first', 'error');
     return;
   }
   
-  terminal.write(cmd + '\r');
-  window.electronAPI.sshWrite(activeSessionId, cmd + '\n');
+  activeTab.terminal.write(cmd + '\r');
+  window.electronAPI.sshWrite(activeTab.sessionId, cmd + '\n');
   showNotification('Command Executed', cmd, 'info');
 }
 
@@ -977,14 +1064,17 @@ function addCustomSnippet() {
   showNotification('Snippet Added', `"${name}" has been added`, 'success');
 }
 
-// File Search
+// File Search (with tabs)
 function filterFiles(query) {
+  const activeTab = tabs.get(activeTabId);
+  if (!activeTab) return;
+  
   if (!query) {
-    renderFileList(allFiles, currentPath.value);
+    renderFileList(activeTab.files, currentPath.value);
     return;
   }
   
-  const filtered = allFiles.filter(file =>
+  const filtered = activeTab.files.filter(file =>
     file.name.toLowerCase().includes(query.toLowerCase())
   );
   
@@ -1138,6 +1228,137 @@ function loadSavedPreferences() {
     }
   } else if (savedTheme && themes[savedTheme]) {
     applyTheme(savedTheme);
+  }
+}
+
+// Render tabs
+function renderTabs() {
+  if (tabs.size === 0) {
+    tabsBar.classList.add('hidden');
+    return;
+  }
+  
+  tabsList.innerHTML = Array.from(tabs.values()).map(tab => `
+    <div class="connection-tab ${tab.id === activeTabId ? 'active' : ''}" data-tab-id="${tab.id}">
+      <span class="connection-tab-icon">🔌</span>
+      <span class="connection-tab-name">${tab.connection.name}</span>
+      <button class="connection-tab-close" data-tab-id="${tab.id}">×</button>
+    </div>
+  `).join('');
+  
+  // Add click listeners
+  document.querySelectorAll('.connection-tab').forEach(tabEl => {
+    tabEl.addEventListener('click', (e) => {
+      if (!e.target.classList.contains('connection-tab-close')) {
+        switchToTab(tabEl.dataset.tabId);
+      }
+    });
+  });
+  
+  document.querySelectorAll('.connection-tab-close').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeTab(btn.dataset.tabId);
+    });
+  });
+}
+
+// Switch to tab
+function switchToTab(tabId) {
+  const tab = tabs.get(tabId);
+  if (!tab) return;
+  
+  activeTabId = tabId;
+  activeSessionId = tab.sessionId;
+  currentConnection = tab.connection;
+  
+  // Update UI
+  currentConnectionName.textContent = tab.connection.name;
+  activeConnectionName.textContent = tab.connection.name;
+  currentPath.value = tab.currentPath;
+  
+  // Show terminal container if hidden
+  if (terminalContainer.classList.contains('hidden')) {
+    welcomeScreen.classList.add('hidden');
+    terminalContainer.classList.remove('hidden');
+  }
+  
+  // Clear terminal element and attach new terminal
+  const terminalEl = document.getElementById('terminal');
+  terminalEl.innerHTML = '';
+  
+  if (!tab.terminalElement) {
+    tab.terminal.open(terminalEl);
+    tab.terminalElement = terminalEl;
+  } else {
+    tab.terminal.open(terminalEl);
+  }
+  
+  tab.fitAddon.fit();
+  tab.terminal.focus();
+  
+  // Update tabs UI
+  renderTabs();
+  
+  // Resize terminal
+  setTimeout(() => {
+    tab.fitAddon.fit();
+    window.electronAPI.sshResize(
+      tab.sessionId,
+      tab.terminal.rows,
+      tab.terminal.cols
+    );
+  }, 100);
+}
+
+// Close tab
+async function closeTab(tabId) {
+  const tab = tabs.get(tabId);
+  if (!tab) return;
+  
+  // Confirm if user wants to close
+  if (!confirm(`Close connection to ${tab.connection.name}?`)) {
+    return;
+  }
+  
+  // Disconnect SSH
+  if (tab.sessionId) {
+    await window.electronAPI.sshDisconnect(tab.sessionId);
+  }
+  
+  // Dispose terminal
+  if (tab.terminal) {
+    tab.terminal.dispose();
+  }
+  
+  // Remove tab
+  tabs.delete(tabId);
+  
+  // If this was active tab, switch to another
+  if (activeTabId === tabId) {
+    if (tabs.size > 0) {
+      // Switch to first available tab
+      const firstTab = Array.from(tabs.keys())[0];
+      switchToTab(firstTab);
+    } else {
+      // No tabs left, show welcome
+      showWelcomeScreen();
+      activeTabId = null;
+      activeSessionId = null;
+      activeConnectionBar.classList.add('hidden');
+    }
+  }
+  
+  // Update tabs UI
+  renderTabs();
+  
+  showNotification('Tab Closed', `Disconnected from ${tab.connection.name}`, 'info');
+}
+
+// Override disconnect to close active tab
+async function disconnect() {
+  if (activeTabId) {
+    await closeTab(activeTabId);
   }
 }
 

@@ -47,27 +47,66 @@ call npm run build
 :: Check result
 echo.
 echo [4/4] Checking build result...
-if exist dist\SSH-Client-Setup-2.0.0.exe (
-    echo.
+echo.
+
+:: Check for current version files
+if exist dist\NeoShell-Setup-2.1.0.exe (
     echo ============================================
     echo   BUILD SUCCESSFUL!
     echo ============================================
     echo.
-    echo Output files in 'dist' folder:
+    echo ✓ Installer created successfully
+    
+    if exist dist\NeoShell-Portable-2.1.0.exe (
+        echo ✓ Portable created successfully
+    ) else (
+        echo ⚠ Portable build may have issues
+    )
+    
+    echo.
+    echo Output files:
     dir dist\*.exe /b
     echo.
-    echo Installer: dist\SSH-Client-Setup-2.0.0.exe
-    echo Portable:  dist\SSH-Client-Portable-2.0.0.exe
+    echo Full paths:
+    echo Installer: %CD%\dist\NeoShell-Setup-2.1.0.exe
+    
+    if exist dist\NeoShell-Portable-2.1.0.exe (
+        echo Portable:  %CD%\dist\NeoShell-Portable-2.1.0.exe
+    )
+    
     echo.
-    echo Ready to distribute!
+    echo File sizes:
+    dir dist\*.exe | findstr ".exe"
     echo.
 ) else (
-    echo.
     echo ============================================
-    echo   BUILD FAILED!
+    echo   Checking build output...
     echo ============================================
     echo.
-    echo Please check error messages above.
+    
+    if exist dist (
+        echo Dist folder exists. Files created:
+        dir dist /b
+        echo.
+        
+        if exist dist\win-unpacked (
+            echo ✓ App packaged successfully
+            echo   Location: dist\win-unpacked\NeoShell.exe
+            echo.
+            echo Installer creation may have failed.
+            echo Try: npm run build:win
+        )
+    ) else (
+        echo ✗ No dist folder created
+        echo Build failed at packaging stage
+    )
+    
+    echo.
+    echo Troubleshooting:
+    echo 1. Run as Administrator
+    echo 2. Disable antivirus temporarily
+    echo 3. Free up disk space (need 500MB+)
+    echo 4. Try: build-simple.bat
     echo.
 )
 

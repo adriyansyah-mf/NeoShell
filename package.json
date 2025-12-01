@@ -1,6 +1,6 @@
 {
   "name": "neoshell",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Modern SSH Client with File Manager, Command Snippets & Beautiful Glassmorphic UI",
   "main": "main.js",
   "repository": {
