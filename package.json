@@ -1,0 +1,106 @@
+{
+  "name": "neoshell",
+  "version": "2.0.0",
+  "description": "Modern SSH Client with File Manager, Command Snippets & Beautiful Glassmorphic UI",
+  "main": "main.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/adriyansyah-mf/NeoShell.git"
+  },
+  "homepage": "https://github.com/adriyansyah-mf/NeoShell",
+  "bugs": {
+    "url": "https://github.com/adriyansyah-mf/NeoShell/issues"
+  },
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:win32": "electron-builder --win --ia32",
+    "build:win64": "electron-builder --win --x64",
+    "build:portable": "electron-builder --win portable",
+    "dist": "electron-builder --win --x64"
+  },
+  "keywords": [
+    "ssh",
+    "electron",
+    "terminal",
+    "sftp",
+    "file-manager"
+  ],
+  "author": "Adriyansyah MF",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^27.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "dependencies": {
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/addon-web-links": "^0.11.0",
+    "@xterm/xterm": "^5.5.0",
+    "electron-store": "^8.1.0",
+    "ssh2": "^1.15.0"
+  },
+  "build": {
+    "appId": "com.neoshell.app",
+    "productName": "NeoShell",
+    "copyright": "Copyright © 2025 Adriyansyah MF",
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico",
+      "artifactName": "NeoShell-Setup-${version}.${ext}",
+      "publisherName": "Adriyansyah MF",
+      "sign": null,
+      "signingHashAlgorithms": []
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "NeoShell",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeader": "assets/icon.ico",
+      "installerHeaderIcon": "assets/icon.ico",
+      "deleteAppDataOnUninstall": false,
+      "perMachine": false,
+      "allowElevation": true
+    },
+    "portable": {
+      "artifactName": "NeoShell-Portable-${version}.${ext}"
+    },
+    "directories": {
+      "output": "dist",
+      "buildResources": "assets"
+    },
+    "files": [
+      "**/*",
+      "!**/*.map",
+      "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+      "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
+      "!**/node_modules/*.d.ts",
+      "!**/node_modules/.bin",
+      "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}",
+      "!.editorconfig",
+      "!**/._*",
+      "!**/{.DS_Store,.git,.hg,.svn,CVS,RCS,SCCS,.gitignore,.gitattributes}",
+      "!**/{__pycache__,thumbs.db,.flowconfig,.idea,.vs,.nyc_output}",
+      "!**/{appveyor.yml,.travis.yml,circle.yml}",
+      "!**/{npm-debug.log,yarn.lock,.yarn-integrity,.yarn-metadata.json}"
+    ]
+  }
+}

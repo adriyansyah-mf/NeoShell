@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NeoShell - Modern SSH Client</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="node_modules/@xterm/xterm/css/xterm.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar untuk manage connections -->
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <h2>🔌 SSH Connections</h2>
+        <button class="btn-primary" id="btnNewConnection">+ New</button>
+      </div>
+      
+      <!-- Search connections -->
+      <div class="search-box">
+        <input type="text" id="searchConnections" placeholder="🔍 Search connections...">
+      </div>
+      
+      <!-- Active connection indicator -->
+      <div class="active-connection-bar hidden" id="activeConnectionBar">
+        <span class="active-label">Active:</span>
+        <span class="active-name" id="activeConnectionName">None</span>
+        <button class="btn-switch" id="btnQuickSwitch" title="Quick Switch">⚡</button>
+      </div>
+      
+      <div class="connections-list" id="connectionsList">
+        <!-- Connections akan di-render disini -->
+      </div>
+    </div>
+    
+    <!-- Main content area -->
+    <div class="main-content">
+      <!-- Welcome screen -->
+      <div class="welcome-screen" id="welcomeScreen">
+        <div class="welcome-content">
+          <h1>Welcome to NeoShell</h1>
+          <p>Modern SSH Client with File Manager & Command Snippets</p>
+          <p style="font-size: 14px; color: var(--text-secondary); margin-top: 10px;">
+            Select a connection from the sidebar or create a new one to get started.
+          </p>
+          <button class="btn-primary btn-large" id="btnNewConnectionWelcome">+ Create New Connection</button>
+          <p style="margin-top: 20px; font-size: 12px;">
+            <a href="https://github.com/adriyansyah-mf/NeoShell" target="_blank" style="color: var(--primary-color); text-decoration: none;">
+              📖 Documentation & Help
+            </a>
+          </p>
+        </div>
+      </div>
+      
+      <!-- Terminal/File Manager Container -->
+      <div class="terminal-container hidden" id="terminalContainer">
+        <div class="terminal-header">
+          <div class="terminal-info">
+            <span class="connection-name" id="currentConnectionName"></span>
+            <span class="connection-status connected" id="connectionStatus">Connected</span>
+          </div>
+          <div class="terminal-tabs">
+            <button class="tab-btn active" id="btnTabTerminal">Terminal</button>
+            <button class="tab-btn" id="btnTabFiles">File Manager</button>
+          </div>
+          <button class="btn-danger btn-small" id="btnDisconnect">Disconnect</button>
+        </div>
+        
+        <!-- Terminal Tab -->
+        <div class="terminal-wrapper" id="terminalTab">
+          <!-- Command snippets bar -->
+          <div class="snippets-bar">
+            <button class="snippet-btn" data-cmd="ls -la">📋 List All</button>
+            <button class="snippet-btn" data-cmd="df -h">💾 Disk Space</button>
+            <button class="snippet-btn" data-cmd="free -h">🧠 Memory</button>
+            <button class="snippet-btn" data-cmd="top">📊 Top</button>
+            <button class="snippet-btn" data-cmd="ps aux">⚙️ Processes</button>
+            <button class="btn-secondary btn-small" id="btnAddSnippet">+ Add</button>
+          </div>
+          <div id="terminal"></div>
+        </div>
+        
+        <!-- File Manager Tab -->
+        <div class="file-manager-wrapper hidden" id="fileManagerTab">
+          <div class="file-manager-toolbar">
+            <div class="path-breadcrumb">
+              <button class="btn-secondary btn-small" id="btnGoBack">⬅️ Back</button>
+              <input type="text" id="currentPath" value="/home" readonly>
+              <button class="btn-secondary btn-small" id="btnGoPath">Go</button>
+            </div>
+            <div class="file-actions">
+              <input type="text" id="searchFiles" placeholder="🔍 Search files..." class="search-input">
+              <button class="btn-secondary btn-small" id="btnRefreshFiles">🔄</button>
+              <button class="btn-secondary btn-small" id="btnUploadFile">📤 Upload</button>
+              <button class="btn-secondary btn-small" id="btnNewFolder">📁 New</button>
+            </div>
+          </div>
+          
+          <div class="file-manager-content" id="fileManagerContent">
+            <div class="drop-zone" id="dropZone">
+              <div class="drop-zone-content">
+                <p class="drop-zone-icon">📁</p>
+                <p class="drop-zone-text">Drag & Drop files here to upload</p>
+                <p class="drop-zone-subtext">or click Upload button</p>
+              </div>
+            </div>
+            
+            <div class="file-list" id="fileList">
+              <!-- Files will be rendered here -->
+            </div>
+          </div>
+          
+          <!-- Upload Progress -->
+          <div class="upload-progress hidden" id="uploadProgress">
+            <div class="progress-info">
+              <span id="progressText">Uploading...</span>
+              <span id="progressPercent">0%</span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-bar-fill" id="progressBarFill"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Modal untuk add/edit connection -->
+  <div class="modal hidden" id="connectionModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modalTitle">New Connection</h2>
+        <button class="btn-close" id="btnCloseModal">&times;</button>
+      </div>
+      
+      <div class="modal-body">
+        <form id="connectionForm">
+          <div class="form-group">
+            <label for="connectionName">Connection Name</label>
+            <input type="text" id="connectionName" placeholder="My Server" required>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-group flex-2">
+              <label for="host">Host</label>
+              <input type="text" id="host" placeholder="192.168.1.1 or example.com" required>
+            </div>
+            
+            <div class="form-group flex-1">
+              <label for="port">Port</label>
+              <input type="number" id="port" value="22" required>
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label for="username">Username</label>
+            <input type="text" id="username" placeholder="root" required>
+          </div>
+          
+          <div class="form-group">
+            <label>Authentication Type</label>
+            <div class="radio-group">
+              <label class="radio-label">
+                <input type="radio" name="authType" value="password" checked>
+                <span>Password</span>
+              </label>
+              <label class="radio-label">
+                <input type="radio" name="authType" value="key">
+                <span>SSH Key</span>
+              </label>
+            </div>
+          </div>
+          
+          <div id="passwordAuth" class="auth-section">
+            <div class="form-group">
+              <label for="password">Password</label>
+              <input type="password" id="password" placeholder="Enter password">
+              <small>⚠️ Password will be stored encrypted</small>
+            </div>
+          </div>
+          
+          <div id="keyAuth" class="auth-section hidden">
+            <div class="form-group">
+              <label for="keyPath">Private Key Path</label>
+              <div class="input-with-button">
+                <input type="text" id="keyPath" placeholder="Path to private key" readonly>
+                <button type="button" class="btn-secondary" id="btnBrowseKey">Browse</button>
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label for="passphrase">Passphrase (Optional)</label>
+              <input type="password" id="passphrase" placeholder="Enter passphrase if key is encrypted">
+            </div>
+          </div>
+          
+          <div class="modal-footer">
+            <button type="button" class="btn-secondary" id="btnCancel">Cancel</button>
+            <button type="submit" class="btn-primary">Save Connection</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Notification Container -->
+  <div class="notifications-container" id="notificationsContainer"></div>
+  
+  <!-- Quick Switch Modal -->
+  <div class="modal hidden" id="quickSwitchModal">
+    <div class="modal-content quick-switch-content">
+      <div class="modal-header">
+        <h2>⚡ Quick Switch Connection</h2>
+        <button class="btn-close" id="btnCloseQuickSwitch">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="text" id="quickSwitchSearch" placeholder="🔍 Type to search..." autofocus>
+        <div class="quick-switch-list" id="quickSwitchList"></div>
+      </div>
+    </div>
+  </div>
+  
+  <script src="renderer.js"></script>
+</body>
+</html>
+
