@@ -9,8 +9,11 @@
 </head>
 <body>
   <div class="app-container">
+    <!-- Sidebar Toggle Button -->
+    <button class="sidebar-toggle" id="sidebarToggle" title="Toggle Sidebar"></button>
+    
     <!-- Sidebar untuk manage connections -->
-    <div class="sidebar">
+    <div class="sidebar" id="sidebar">
       <div class="sidebar-header">
         <h2>🔌 SSH Connections</h2>
         <button class="btn-primary" id="btnNewConnection">+ New</button>
@@ -205,6 +208,54 @@
   
   <!-- Notification Container -->
   <div class="notifications-container" id="notificationsContainer"></div>
+  
+  <!-- Theme Selector -->
+  <div class="theme-selector">
+    <button class="theme-button" id="themeButton" title="Change Theme">🎨</button>
+    <div class="theme-menu" id="themeMenu">
+      <h3>🎨 Choose Theme</h3>
+      
+      <div class="theme-presets">
+        <div class="theme-preset theme-purple active" data-theme="purple">
+          Purple Galaxy
+        </div>
+        <div class="theme-preset theme-ocean" data-theme="ocean">
+          Ocean Blue
+        </div>
+        <div class="theme-preset theme-sunset" data-theme="sunset">
+          Sunset Glow
+        </div>
+        <div class="theme-preset theme-forest" data-theme="forest">
+          Forest Green
+        </div>
+        <div class="theme-preset theme-night" data-theme="night">
+          Midnight
+        </div>
+        <div class="theme-preset theme-candy" data-theme="candy">
+          Candy Pop
+        </div>
+      </div>
+      
+      <div class="theme-custom">
+        <h4>✏️ Custom Theme</h4>
+        <div class="color-picker-group">
+          <div class="color-picker-row">
+            <label>Primary</label>
+            <input type="color" id="customPrimary" value="#667eea">
+          </div>
+          <div class="color-picker-row">
+            <label>Secondary</label>
+            <input type="color" id="customSecondary" value="#764ba2">
+          </div>
+          <div class="color-picker-row">
+            <label>Background</label>
+            <input type="color" id="customBackground" value="#0f0f1e">
+          </div>
+        </div>
+        <button class="btn-secondary btn-small" id="applyCustomTheme">Apply Custom</button>
+      </div>
+    </div>
+  </div>
   
   <!-- Quick Switch Modal -->
   <div class="modal hidden" id="quickSwitchModal">

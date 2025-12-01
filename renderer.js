@@ -48,6 +48,16 @@ const searchFiles = document.getElementById('searchFiles');
 const btnAddSnippet = document.getElementById('btnAddSnippet');
 const notificationsContainer = document.getElementById('notificationsContainer');
 
+// Sidebar & Theme elements
+const sidebar = document.getElementById('sidebar');
+const sidebarToggle = document.getElementById('sidebarToggle');
+const themeButton = document.getElementById('themeButton');
+const themeMenu = document.getElementById('themeMenu');
+const customPrimary = document.getElementById('customPrimary');
+const customSecondary = document.getElementById('customSecondary');
+const customBackground = document.getElementById('customBackground');
+const applyCustomTheme = document.getElementById('applyCustomTheme');
+
 // File Manager elements
 const btnTabTerminal = document.getElementById('btnTabTerminal');
 const btnTabFiles = document.getElementById('btnTabFiles');
@@ -208,6 +218,23 @@ function setupEventListeners() {
   });
   
   btnAddSnippet.addEventListener('click', addCustomSnippet);
+  
+  // Sidebar toggle
+  sidebarToggle.addEventListener('click', toggleSidebar);
+  
+  // Theme selector
+  themeButton.addEventListener('click', toggleThemeMenu);
+  document.querySelectorAll('.theme-preset').forEach(preset => {
+    preset.addEventListener('click', () => applyTheme(preset.dataset.theme));
+  });
+  applyCustomTheme.addEventListener('click', applyCustomThemeColors);
+  
+  // Close theme menu when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!themeMenu.contains(e.target) && e.target !== themeButton) {
+      themeMenu.classList.remove('show');
+    }
+  });
   
   // Drag & Drop
   setupDragAndDrop();
@@ -966,6 +993,155 @@ function filterFiles(query) {
 
 // No overrides - functions are defined correctly below
 
+// Sidebar toggle
+function toggleSidebar() {
+  sidebar.classList.toggle('collapsed');
+  
+  // Save preference
+  const isCollapsed = sidebar.classList.contains('collapsed');
+  localStorage.setItem('sidebarCollapsed', isCollapsed);
+  
+  // Resize terminal if visible
+  if (!terminalContainer.classList.contains('hidden')) {
+    setTimeout(() => {
+      if (fitAddon) {
+        fitAddon.fit();
+      }
+    }, 300);
+  }
+}
+
+// Theme Management
+const themes = {
+  purple: {
+    primary: '#667eea',
+    secondary: '#764ba2',
+    background: '#0f0f1e',
+    gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+  },
+  ocean: {
+    primary: '#2E3192',
+    secondary: '#1BFFFF',
+    background: '#0a1128',
+    gradient: 'linear-gradient(135deg, #2E3192 0%, #1BFFFF 100%)'
+  },
+  sunset: {
+    primary: '#FF6B6B',
+    secondary: '#FFE66D',
+    background: '#2d1b1b',
+    gradient: 'linear-gradient(135deg, #FF6B6B 0%, #FFE66D 100%)'
+  },
+  forest: {
+    primary: '#134E5E',
+    secondary: '#71B280',
+    background: '#0a1a0f',
+    gradient: 'linear-gradient(135deg, #134E5E 0%, #71B280 100%)'
+  },
+  night: {
+    primary: '#0F2027',
+    secondary: '#2C5364',
+    background: '#000000',
+    gradient: 'linear-gradient(135deg, #0F2027 0%, #2C5364 100%)'
+  },
+  candy: {
+    primary: '#D38312',
+    secondary: '#A83279',
+    background: '#1a0a14',
+    gradient: 'linear-gradient(135deg, #D38312 0%, #A83279 100%)'
+  }
+};
+
+function toggleThemeMenu() {
+  themeMenu.classList.toggle('show');
+}
+
+function applyTheme(themeName) {
+  const theme = themes[themeName];
+  if (!theme) return;
+  
+  // Apply theme colors
+  document.documentElement.style.setProperty('--primary-color', theme.primary);
+  document.documentElement.style.setProperty('--bg-dark', theme.background);
+  document.documentElement.style.setProperty('--primary-gradient', theme.gradient);
+  
+  // Update active preset
+  document.querySelectorAll('.theme-preset').forEach(preset => {
+    preset.classList.remove('active');
+  });
+  document.querySelector(`[data-theme="${themeName}"]`).classList.add('active');
+  
+  // Save preference
+  localStorage.setItem('theme', themeName);
+  localStorage.setItem('customTheme', 'false');
+  
+  // Show notification
+  showNotification('Theme Changed', `Applied ${themeName.charAt(0).toUpperCase() + themeName.slice(1)} theme`, 'success');
+  
+  // Close menu
+  themeMenu.classList.remove('show');
+}
+
+function applyCustomThemeColors() {
+  const primary = customPrimary.value;
+  const secondary = customSecondary.value;
+  const background = customBackground.value;
+  
+  // Create gradient
+  const gradient = `linear-gradient(135deg, ${primary} 0%, ${secondary} 100%)`;
+  
+  // Apply colors
+  document.documentElement.style.setProperty('--primary-color', primary);
+  document.documentElement.style.setProperty('--bg-dark', background);
+  document.documentElement.style.setProperty('--primary-gradient', gradient);
+  
+  // Save custom theme
+  const customTheme = { primary, secondary, background, gradient };
+  localStorage.setItem('customTheme', JSON.stringify(customTheme));
+  localStorage.setItem('theme', 'custom');
+  
+  // Update active preset
+  document.querySelectorAll('.theme-preset').forEach(preset => {
+    preset.classList.remove('active');
+  });
+  
+  // Show notification
+  showNotification('Custom Theme Applied', 'Your custom colors are now active', 'success');
+  
+  // Close menu
+  themeMenu.classList.remove('show');
+}
+
+function loadSavedPreferences() {
+  // Load sidebar state
+  const sidebarCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+  if (sidebarCollapsed) {
+    sidebar.classList.add('collapsed');
+  }
+  
+  // Load theme
+  const savedTheme = localStorage.getItem('theme');
+  const customThemeData = localStorage.getItem('customTheme');
+  
+  if (savedTheme === 'custom' && customThemeData && customThemeData !== 'false') {
+    try {
+      const customTheme = JSON.parse(customThemeData);
+      document.documentElement.style.setProperty('--primary-color', customTheme.primary);
+      document.documentElement.style.setProperty('--bg-dark', customTheme.background);
+      document.documentElement.style.setProperty('--primary-gradient', customTheme.gradient);
+      
+      // Update color pickers
+      customPrimary.value = customTheme.primary;
+      customSecondary.value = customTheme.secondary;
+      customBackground.value = customTheme.background;
+    } catch (e) {
+      console.error('Failed to load custom theme', e);
+    }
+  } else if (savedTheme && themes[savedTheme]) {
+    applyTheme(savedTheme);
+  }
+}
+
 // Initialize app when DOM is ready
 init();
+loadSavedPreferences();
 
